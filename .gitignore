@@ -1,0 +1,16 @@
+# Build files
+build/
+
+# Python virtual environment
+dashboard/venv/
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# macOS files
+.DS_Store
+
+# Editor files
+.vscode/

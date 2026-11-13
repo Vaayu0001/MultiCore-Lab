@@ -1,0 +1,5 @@
+array_size,warmup_runs,benchmark_runs,threads,sequential_ms,parallel_ms,speedup,efficiency,correctness
+10000000,2,15,1,48.8162,29.1533,1.67446,99.9314,PASSED
+10000000,2,15,2,47.7102,16.9542,2.81407,87.1847,PASSED
+10000000,2,15,4,47.787,9.74304,4.90473,76.2084,PASSED
+10000000,2,15,8,47.0192,9.92388,4.73798,37.2534,PASSED

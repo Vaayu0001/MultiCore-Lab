@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>MultiCore Lab | Performance Dashboard</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f3f6fb;
+            color: #1e293b;
+        }
+
+        .sidebar {
+            width: 240px;
+            height: 100vh;
+            background: #111827;
+            color: white;
+            position: fixed;
+            padding: 25px 20px;
+        }
+
+        .sidebar h2 {
+            font-size: 21px;
+            margin-bottom: 10px;
+        }
+
+        .sidebar p {
+            color: #9ca3af;
+            font-size: 13px;
+            margin-bottom: 40px;
+        }
+
+        .sidebar a {
+            display: block;
+            color: #d1d5db;
+            text-decoration: none;
+            padding: 13px;
+            margin-bottom: 10px;
+            border-radius: 7px;
+            font-size: 14px;
+        }
+
+        .sidebar a:hover {
+            background: #374151;
+            color: white;
+        }
+
+        .main {
+            margin-left: 240px;
+            padding: 30px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            gap: 15px;
+        }
+
+        .header h1 {
+            font-size: 26px;
+        }
+
+        .header p {
+            color: #64748b;
+            margin-top: 7px;
+            font-size: 14px;
+        }
+
+        .status {
+            background: #dcfce7;
+            color: #15803d;
+            padding: 9px 15px;
+            border-radius: 20px;
+            font-size: 13px;
+        }
+
+        .section-title {
+            margin: 30px 0 18px;
+            font-size: 20px;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 18px;
+        }
+
+        .card {
+            background: white;
+            padding: 22px;
+            border-radius: 12px;
+            box-shadow: 0 3px 12px rgba(0,0,0,0.04);
+        }
+
+        .card p {
+            color: #64748b;
+            font-size: 13px;
+            margin-bottom: 13px;
+        }
+
+        .card h2 {
+            font-size: 25px;
+            color: #2563eb;
+        }
+
+        .card small {
+            display: block;
+            margin-top: 9px;
+            color: #64748b;
+        }
+
+        .charts {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        .chart-box {
+            background: white;
+            padding: 22px;
+            border-radius: 12px;
+            box-shadow: 0 3px 12px rgba(0,0,0,0.04);
+            min-width: 0;
+        }
+
+        .chart-box h3 {
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 280px;
+        }
+
+        .table-box {
+            background: white;
+            padding: 22px;
+            border-radius: 12px;
+            margin-top: 20px;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 550px;
+        }
+
+        th, td {
+            padding: 13px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 14px;
+        }
+
+        th {
+            color: #64748b;
+            background: #f8fafc;
+        }
+
+        .passed {
+            color: #15803d;
+            font-weight: bold;
+        }
+
+        footer {
+            text-align: center;
+            color: #64748b;
+            font-size: 13px;
+            margin-top: 35px;
+            padding-bottom: 15px;
+        }
+
+        @media (max-width: 1000px) {
+
+            .cards {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .charts {
+                grid-template-columns: 1fr;
+            }
+
+        }
+
+        @media (max-width: 650px) {
+
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: relative;
+            }
+
+            .sidebar p {
+                margin-bottom: 15px;
+            }
+
+            .sidebar a {
+                display: inline-block;
+                margin-right: 5px;
+            }
+
+            .main {
+                margin-left: 0;
+                padding: 18px;
+            }
+
+            .cards {
+                grid-template-columns: 1fr;
+            }
+
+            .header {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+    <!-- Sidebar -->
+
+    <div class="sidebar">
+
+        <h2>⚡ MultiCore Lab</h2>
+
+        <p>Performance Analysis System</p>
+
+        <a href="#overview">Dashboard Overview</a>
+
+        <a href="#data">Data Parallelism</a>
+
+        <a href="#task">Task Parallelism</a>
+
+        <a href="#results">Benchmark Results</a>
+
+    </div>
+
+
+    <!-- Main Content -->
+
+    <div class="main">
+
+        <div class="header">
+
+            <div>
+                <h1>Performance Dashboard</h1>
+
+                <p>
+                    Analyze sequential and parallel execution performance.
+                </p>
+            </div>
+
+            <div class="status">
+                ● Dashboard Connected
+            </div>
+
+        </div>
+
+
+        <!-- Overview -->
+
+        <h2 class="section-title" id="overview">
+            Dashboard Overview
+        </h2>
+
+        <div class="cards">
+
+            <div class="card">
+                <p>Array Size</p>
+                <h2 id="arraySize">--</h2>
+                <small>Data Parallelism</small>
+            </div>
+
+            <div class="card">
+                <p>Maximum Data Speedup</p>
+                <h2 id="dataSpeedup">--</h2>
+                <small>Data Parallelism</small>
+            </div>
+
+            <div class="card">
+                <p>Best Task Execution</p>
+                <h2 id="bestTask">--</h2>
+                <small>Task Parallelism</small>
+            </div>
+
+            <div class="card">
+                <p>Correctness</p>
+                <h2 id="correctness">--</h2>
+                <small>Benchmark Verification</small>
+            </div>
+
+        </div>
+
+
+        <!-- Data Parallelism -->
+
+        <h2 class="section-title" id="data">
+            Data Parallelism Analysis
+        </h2>
+
+        <div class="charts">
+
+            <div class="chart-box">
+
+                <h3>Sequential vs Parallel Execution Time</h3>
+
+                <div class="chart-container">
+                    <canvas id="executionChart"></canvas>
+                </div>
+
+            </div>
+
+
+            <div class="chart-box">
+
+                <h3>Speedup vs Number of Threads</h3>
+
+                <div class="chart-container">
+                    <canvas id="speedupChart"></canvas>
+                </div>
+
+            </div>
+
+
+            <div class="chart-box">
+
+                <h3>Parallel Efficiency</h3>
+
+                <div class="chart-container">
+                    <canvas id="efficiencyChart"></canvas>
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- Task Parallelism -->
+
+        <h2 class="section-title" id="task">
+            Task Parallelism Analysis
+        </h2>
+
+        <div class="charts">
+
+            <div class="chart-box">
+
+                <h3>Execution Time Comparison</h3>
+
+                <div class="chart-container">
+                    <canvas id="taskExecutionChart"></canvas>
+                </div>
+
+            </div>
+
+
+            <div class="chart-box">
+
+                <h3>Task Speedup Comparison</h3>
+
+                <div class="chart-container">
+                    <canvas id="taskSpeedupChart"></canvas>
+                </div>
+
+            </div>
+
+
+            <div class="chart-box">
+
+                <h3>Task Parallelism Efficiency</h3>
+
+                <div class="chart-container">
+                    <canvas id="taskEfficiencyChart"></canvas>
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- Benchmark Table -->
+
+        <h2 class="section-title" id="results">
+            Task Benchmark Results
+        </h2>
+
+        <div class="table-box">
+
+            <table>
+
+                <thead>
+
+                    <tr>
+                        <th>Method</th>
+                        <th>Workers</th>
+                        <th>Execution Time (ms)</th>
+                        <th>Speedup</th>
+                        <th>Efficiency</th>
+                        <th>Status</th>
+                    </tr>
+
+                </thead>
+
+                <tbody id="taskTable">
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+
+        <footer>
+            MultiCore Lab | Data Parallelism and Task Parallelism
+        </footer>
+
+    </div>
+
+
+    <script>
+
+        let charts = [];
+
+        function createChart(id, type, labels, datasets) {
+
+            const ctx = document.getElementById(id);
+
+            const chart = new Chart(ctx, {
+
+                type: type,
+
+                data: {
+                    labels: labels,
+                    datasets: datasets
+                },
+
+                options: {
+
+                    responsive: true,
+                    maintainAspectRatio: false,
+
+                    plugins: {
+                        legend: {
+                            position: "bottom"
+                        }
+                    },
+
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+
+                }
+
+            });
+
+            charts.push(chart);
+
+        }
+
+
+        async function loadDashboard() {
+
+            try {
+
+                const response = await fetch("/api/data");
+
+                if (!response.ok) {
+                    throw new Error("Could not load benchmark data");
+                }
+
+                const data = await response.json();
+
+                const dp = data.data_parallelism;
+                const tp = data.task_parallelism;
+
+
+                if (dp.length === 0 || tp.length === 0) {
+                    throw new Error("Benchmark CSV data is missing");
+                }
+
+
+                // Convert CSV values into numbers
+
+                const threads = dp.map(row => Number(row.threads));
+
+                const sequential = dp.map(
+                    row => Number(row.sequential_ms)
+                );
+
+                const parallel = dp.map(
+                    row => Number(row.parallel_ms)
+                );
+
+                const speedup = dp.map(
+                    row => Number(row.speedup)
+                );
+
+                const efficiency = dp.map(
+                    row => Number(row.efficiency)
+                );
+
+
+                // Overview cards
+
+                document.getElementById("arraySize").textContent =
+                    Number(dp[0].array_size).toLocaleString("en-IN");
+
+                const maxSpeedup = Math.max(...speedup);
+
+                document.getElementById("dataSpeedup").textContent =
+                    maxSpeedup.toFixed(2) + "x";
+
+
+                // Task data
+
+                const taskTimes = tp.map(
+                    row => Number(row.execution_ms)
+                );
+
+                const bestIndex = taskTimes.indexOf(
+                    Math.min(...taskTimes)
+                );
+
+                document.getElementById("bestTask").textContent =
+                    tp[bestIndex].method;
+
+                const allPassed =
+                    dp.every(row => row.correctness === "PASSED") &&
+                    tp.every(row => row.correctness === "PASSED");
+
+                document.getElementById("correctness").textContent =
+                    allPassed ? "PASSED" : "FAILED";
+
+
+                // Data Parallelism Charts
+
+                createChart(
+                    "executionChart",
+                    "bar",
+                    threads.map(t => t + " Threads"),
+                    [
+                        {
+                            label: "Sequential",
+                            data: sequential
+                        },
+                        {
+                            label: "Parallel",
+                            data: parallel
+                        }
+                    ]
+                );
+
+
+                createChart(
+                    "speedupChart",
+                    "line",
+                    threads.map(t => t + " Threads"),
+                    [
+                        {
+                            label: "Speedup",
+                            data: speedup,
+                            tension: 0.3
+                        }
+                    ]
+                );
+
+
+                createChart(
+                    "efficiencyChart",
+                    "line",
+                    threads.map(t => t + " Threads"),
+                    [
+                        {
+                            label: "Efficiency (%)",
+                            data: efficiency,
+                            tension: 0.3
+                        }
+                    ]
+                );
+
+
+                // Task Parallelism Charts
+
+                const methods = tp.map(row => row.method);
+
+                const taskSpeedups = tp.map(
+                    row => Number(row.speedup)
+                );
+
+                const taskEfficiencies = tp.map(
+                    row => row.efficiency === ""
+                        ? null
+                        : Number(row.efficiency)
+                );
+
+
+                createChart(
+                    "taskExecutionChart",
+                    "bar",
+                    methods,
+                    [
+                        {
+                            label: "Execution Time (ms)",
+                            data: taskTimes
+                        }
+                    ]
+                );
+
+
+                createChart(
+                    "taskSpeedupChart",
+                    "bar",
+                    methods,
+                    [
+                        {
+                            label: "Speedup",
+                            data: taskSpeedups
+                        }
+                    ]
+                );
+
+
+                createChart(
+                    "taskEfficiencyChart",
+                    "bar",
+                    methods,
+                    [
+                        {
+                            label: "Efficiency (%)",
+                            data: taskEfficiencies
+                        }
+                    ]
+                );
+
+
+                // Task Results Table
+
+                const table = document.getElementById("taskTable");
+
+                table.innerHTML = "";
+
+                tp.forEach(row => {
+
+                    const tr = document.createElement("tr");
+
+                    const values = [
+                        row.method,
+                        row.workers,
+                        Number(row.execution_ms).toFixed(2),
+                        Number(row.speedup).toFixed(2) + "x",
+                        row.efficiency === ""
+                            ? "N/A"
+                            : Number(row.efficiency).toFixed(2) + "%",
+                        row.correctness
+                    ];
+
+                    values.forEach((value, index) => {
+
+                        const td = document.createElement("td");
+
+                        td.textContent = value;
+
+                        if (index === 5 && value === "PASSED") {
+                            td.className = "passed";
+                        }
+
+                        tr.appendChild(td);
+
+                    });
+
+                    table.appendChild(tr);
+
+                });
+
+            }
+
+            catch (error) {
+
+                console.error(error);
+
+                document.querySelector(".status").textContent =
+                    "● Data Loading Failed";
+
+                document.querySelector(".status").style.background =
+                    "#fee2e2";
+
+                document.querySelector(".status").style.color =
+                    "#b91c1c";
+
+                document.querySelector(".main").insertAdjacentHTML(
+                    "beforeend",
+                    `<p style="color:#b91c1c;margin-top:20px">
+                        ${error.message}
+                    </p>`
+                );
+
+            }
+
+        }
+
+
+        loadDashboard();
+
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,4 @@
+tasks,workers,method,execution_ms,speedup,efficiency,correctness
+8,1,Sequential,75.219208,1.0,,PASSED
+8,8,Separate Threads,16.367625,4.595609,57.501693,PASSED
+8,3,Thread Pool,29.939875,2.512342,83.814645,PASSED
