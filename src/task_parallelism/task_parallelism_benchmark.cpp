@@ -356,8 +356,9 @@ int main(int argc, char* argv[])
         double singlePool = medianTime(singlePoolTimes);
 
         double threadSpeedup = seq / threads;
+
         double threadEfficiency =
-            (singleThread / threads) / TASKS * 100.0;
+            (threadSpeedup / TASKS) * 100.0;
 
         cout << fixed << setprecision(6);
 
@@ -395,8 +396,9 @@ int main(int argc, char* argv[])
 
             double pool = medianTime(poolTimes[i]);
             double speedup = seq / pool;
+
             double efficiency =
-                (singlePool / pool) / workers * 100.0;
+                (speedup / workers) * 100.0;
 
             cout << "{";
             cout << "\"workers\":" << workers << ",";

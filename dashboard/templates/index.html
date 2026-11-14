@@ -569,20 +569,20 @@
                     <div class="config-field">
                         <label for="arraySizeInput">Array Size</label>
                         <input type="number" id="arraySizeInput"
-                            value="10000000" min="1000"
-                            max="50000000" required>
+                            value="1000000" min="1000"
+                            max="2000000" required>
                     </div>
 
                     <div class="config-field">
                         <label for="dataWarmup">Warm-up Runs</label>
                         <input type="number" id="dataWarmup"
-                            value="2" min="0" max="20" required>
+                            value="1" min="0" max="1" required>
                     </div>
 
                     <div class="config-field">
                         <label for="dataRuns">Benchmark Runs</label>
                         <input type="number" id="dataRuns"
-                            value="15" min="1" max="100" required>
+                            value="3" min="1" max="3" required>
                     </div>
 
                     <div class="config-field">
@@ -590,7 +590,7 @@
                             Worker Counts (comma separated)
                         </label>
                         <input type="text" id="dataWorkers"
-                            value="1,2,4,8" required>
+                            value="1,2,4" required>
                     </div>
 
                 </div>
@@ -655,26 +655,26 @@
                     <div class="config-field">
                         <label for="taskCount">Number of Tasks</label>
                         <input type="number" id="taskCount"
-                            value="8" min="1" max="64" required>
+                            value="4" min="1" max="8" required>
                     </div>
 
                     <div class="config-field">
                         <label for="taskWork">Work Per Task</label>
                         <input type="number" id="taskWork"
-                            value="2000000" min="1000"
-                            max="10000000" required>
+                            value="500000" min="1000"
+                            max="500000" required>
                     </div>
 
                     <div class="config-field">
                         <label for="taskWarmup">Warm-up Runs</label>
                         <input type="number" id="taskWarmup"
-                            value="2" min="0" max="20" required>
+                            value="1" min="0" max="1" required>
                     </div>
 
                     <div class="config-field">
                         <label for="taskRuns">Benchmark Runs</label>
                         <input type="number" id="taskRuns"
-                            value="15" min="1" max="100" required>
+                            value="3" min="1" max="3" required>
                     </div>
 
                     <div class="config-field">
@@ -997,18 +997,18 @@
                     const payload = {
 
                         array_size: readNumber(
-                            "arraySizeInput", 1000, 50000000, "Array size"
+                            "arraySizeInput", 1000, 2000000, "Array size"
                         ),
 
                         warmup_runs: readNumber(
-                            "dataWarmup", 0, 20, "Warm-up runs"
+                            "dataWarmup", 0, 1, "Warm-up runs"
                         ),
 
                         benchmark_runs: readNumber(
-                            "dataRuns", 1, 100, "Benchmark runs"
+                            "dataRuns", 1, 3, "Benchmark runs"
                         ),
 
-                        workers: readWorkers("dataWorkers", 256)
+                        workers: readWorkers("dataWorkers", 4)
 
                     };
 
@@ -1036,16 +1036,16 @@
                 try {
 
                     const tasks = readNumber(
-                        "taskCount", 1, 64, "Number of tasks"
+                        "taskCount", 1, 8, "Number of tasks"
                     );
 
                     const work = readNumber(
-                        "taskWork", 1000, 10000000, "Work per task"
+                        "taskWork", 1000, 500000, "Work per task"
                     );
 
-                    if (tasks * work > 100000000) {
+                    if (tasks * work > 2000000) {
                         throw new Error(
-                            "Total workload cannot exceed 100 million iterations."
+                            "Total workload cannot exceed 2 million iterations."
                         );
                     }
 
@@ -1056,14 +1056,14 @@
                         work_per_task: work,
 
                         warmup_runs: readNumber(
-                            "taskWarmup", 0, 20, "Warm-up runs"
+                            "taskWarmup", 0, 1, "Warm-up runs"
                         ),
 
                         benchmark_runs: readNumber(
-                            "taskRuns", 1, 100, "Benchmark runs"
+                            "taskRuns", 1, 3, "Benchmark runs"
                         ),
 
-                        workers: readWorkers("taskWorkers", tasks)
+                        workers: readWorkers("taskWorkers", Math.min(tasks, 4))
 
                     };
 

@@ -1,0 +1,11 @@
+.git
+.github
+.vscode
+build
+__pycache__
+*.pyc
+.DS_Store
+.pytest_cache
+
+# Keep local experiment history out of deployment
+results/

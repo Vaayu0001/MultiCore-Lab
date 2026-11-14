@@ -220,7 +220,7 @@ int main(int argc, char* argv[])
             double speedup = seqTime / parallelTime;
 
             double efficiency =
-                (singleTime / parallelTime) / numThreads * 100.0;
+                (speedup / numThreads) * 100.0;
 
             if (!first)
                 cout << ",";

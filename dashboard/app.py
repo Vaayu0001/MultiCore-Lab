@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, render_template, request
 import csv
 import json
+import math
 import os
 import platform
 import shutil
@@ -24,31 +25,26 @@ ENABLE_BENCHMARKS = (
     os.environ.get("ENABLE_BENCHMARKS", "false").lower() == "true"
 )
 
+MAX_ARRAY_SIZE = int(os.environ.get("MAX_ARRAY_SIZE", "50000000"))
+MAX_WORKERS = int(os.environ.get("MAX_WORKERS", "256"))
+MAX_WARMUP_RUNS = int(os.environ.get("MAX_WARMUP_RUNS", "20"))
+MAX_BENCHMARK_RUNS = int(os.environ.get("MAX_BENCHMARK_RUNS", "100"))
+MAX_TASKS = int(os.environ.get("MAX_TASKS", "64"))
+MAX_WORK_PER_TASK = int(os.environ.get("MAX_WORK_PER_TASK", "10000000"))
+MAX_TASK_TOTAL_WORK = int(os.environ.get("MAX_TASK_TOTAL_WORK", "100000000"))
+BENCHMARK_TIMEOUT = int(os.environ.get("BENCHMARK_TIMEOUT", "300"))
+
 benchmark_lock = threading.Lock()
 
-
 DATA_COLUMNS = [
-    "array_size",
-    "warmup_runs",
-    "benchmark_runs",
-    "threads",
-    "sequential_ms",
-    "parallel_ms",
-    "speedup",
-    "efficiency",
-    "correctness",
-    "experiment_id"
+    "array_size", "warmup_runs", "benchmark_runs", "threads",
+    "sequential_ms", "parallel_ms", "speedup", "efficiency",
+    "correctness", "experiment_id"
 ]
 
 TASK_COLUMNS = [
-    "tasks",
-    "workers",
-    "method",
-    "execution_ms",
-    "speedup",
-    "efficiency",
-    "correctness",
-    "experiment_id"
+    "tasks", "workers", "method", "execution_ms", "speedup",
+    "efficiency", "correctness", "experiment_id"
 ]
 
 
@@ -62,7 +58,6 @@ def create_backup():
     backup_dir.mkdir(exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-
     backup_path = backup_dir / f"backup_{timestamp}"
     backup_path.mkdir()
 
@@ -109,8 +104,7 @@ def read_csv(filename):
         return []
 
     with open(file_path, "r", newline="", encoding="utf-8") as file:
-        reader = csv.DictReader(file)
-        return list(reader)
+        return list(csv.DictReader(file))
 
 
 def ensure_csv_columns(filename, columns):
@@ -142,6 +136,7 @@ def ensure_csv_columns(filename, columns):
     with open(
         temporary_file, "w", newline="", encoding="utf-8"
     ) as file:
+
         writer = csv.DictWriter(file, fieldnames=updated_columns)
         writer.writeheader()
         writer.writerows(existing_rows)
@@ -162,6 +157,7 @@ def save_csv(filename, columns, rows):
     )
 
     with open(file_path, "a", newline="", encoding="utf-8") as file:
+
         writer = csv.DictWriter(file, fieldnames=columns)
 
         if write_header:
@@ -178,15 +174,18 @@ def read_experiments():
         return []
 
     try:
+
         with open(EXPERIMENTS_FILE, "r", encoding="utf-8") as file:
             experiments = json.load(file)
 
     except (OSError, json.JSONDecodeError) as error:
+
         raise RuntimeError(
             "Experiment metadata file could not be read"
         ) from error
 
     if not isinstance(experiments, list):
+
         raise RuntimeError(
             "Experiment metadata file has an invalid format"
         )
@@ -201,6 +200,7 @@ def save_experiments(experiments):
     temporary_file = EXPERIMENTS_FILE.with_suffix(".json.tmp")
 
     with open(temporary_file, "w", encoding="utf-8") as file:
+
         json.dump(experiments, file, indent=2)
         file.write("\n")
 
@@ -266,6 +266,7 @@ def finish_experiment(
             break
 
     else:
+
         raise RuntimeError(
             "Experiment metadata record was not found"
         )
@@ -283,6 +284,7 @@ def read_integer(data, name, minimum, maximum):
         raise ValueError(f"{name} must be an integer")
 
     if value < minimum or value > maximum:
+
         raise ValueError(
             f"{name} must be between {minimum} and {maximum}"
         )
@@ -295,6 +297,7 @@ def read_workers(data, name, maximum):
     value = data.get(name)
 
     if not isinstance(value, list) or not value:
+
         raise ValueError(
             f"{name} must be a non-empty list"
         )
@@ -303,16 +306,19 @@ def read_workers(data, name, maximum):
         isinstance(worker, bool) or not isinstance(worker, int)
         for worker in value
     ):
+
         raise ValueError(
             "Worker counts must be integers"
         )
 
     if len(value) != len(set(value)):
+
         raise ValueError(
             "Duplicate worker counts are not allowed"
         )
 
     if any(worker < 1 or worker > maximum for worker in value):
+
         raise ValueError(
             f"Worker counts must be between 1 and {maximum}"
         )
@@ -320,16 +326,34 @@ def read_workers(data, name, maximum):
     return value
 
 
+def read_positive_number(value, name):
+
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(value)
+        or value <= 0
+    ):
+
+        raise RuntimeError(
+            f"Invalid benchmark measurement: {name}"
+        )
+
+    return float(value)
+
+
 # ---------------- C++ EXECUTION ----------------
 
 def run_program(program, arguments):
 
     if not ENABLE_BENCHMARKS:
+
         raise PermissionError(
             "Benchmark execution is disabled"
         )
 
     if not program.is_file():
+
         raise FileNotFoundError(
             f"Benchmark executable not found: {program.name}"
         )
@@ -338,20 +362,23 @@ def run_program(program, arguments):
         [str(program)] + [str(arg) for arg in arguments],
         capture_output=True,
         text=True,
-        timeout=300,
+        timeout=BENCHMARK_TIMEOUT,
         cwd=BASE_DIR,
         check=False
     )
 
     if result.returncode != 0:
+
         raise RuntimeError(
             result.stderr.strip() or "Benchmark execution failed"
         )
 
     try:
+
         output = json.loads(result.stdout)
 
     except json.JSONDecodeError as error:
+
         raise RuntimeError(
             "Benchmark returned invalid JSON"
         ) from error
@@ -386,9 +413,11 @@ def get_data():
 def get_experiments():
 
     try:
+
         return jsonify(read_experiments())
 
     except RuntimeError as error:
+
         return jsonify({"error": str(error)}), 500
 
 
@@ -398,6 +427,7 @@ def get_experiments():
 def delete_experiment(experiment_id):
 
     if not benchmark_lock.acquire(blocking=False):
+
         return jsonify({
             "error": "Cannot delete while a benchmark is running"
         }), 409
@@ -418,6 +448,7 @@ def delete_experiment(experiment_id):
         )
 
         if experiment is None:
+
             return jsonify({
                 "error": "Experiment not found"
             }), 404
@@ -425,14 +456,17 @@ def delete_experiment(experiment_id):
         experiment_type = experiment.get("experiment_type")
 
         if experiment_type == "data_parallelism":
+
             csv_file = RESULTS_DIR / "data_parallelism.csv"
             default_columns = DATA_COLUMNS
 
         elif experiment_type == "task_parallelism":
+
             csv_file = RESULTS_DIR / "task_parallelism.csv"
             default_columns = TASK_COLUMNS
 
         else:
+
             return jsonify({
                 "error": "Invalid experiment type"
             }), 400
@@ -451,6 +485,7 @@ def delete_experiment(experiment_id):
             with open(
                 csv_file, "r", newline="", encoding="utf-8"
             ) as file:
+
                 reader = csv.DictReader(file)
                 columns = reader.fieldnames or default_columns
                 rows = list(reader)
@@ -485,6 +520,7 @@ def delete_experiment(experiment_id):
         temporary_files.append(json_temp)
 
         with open(json_temp, "w", encoding="utf-8") as file:
+
             json.dump(updated_experiments, file, indent=2)
             file.write("\n")
 
@@ -506,9 +542,11 @@ def delete_experiment(experiment_id):
         if backup_path is not None:
 
             try:
+
                 restore_backup(backup_path)
 
             except Exception:
+
                 app.logger.exception(
                     "CRITICAL: Could not restore experiment backup"
                 )
@@ -522,7 +560,10 @@ def delete_experiment(experiment_id):
                 }), 500
 
         return jsonify({
-            "error": "Experiment deletion failed. Original data was restored."
+            "error": (
+                "Experiment deletion failed. "
+                "Original data was restored."
+            )
         }), 500
 
     finally:
@@ -530,10 +571,12 @@ def delete_experiment(experiment_id):
         for temporary_file in temporary_files:
 
             try:
+
                 if temporary_file.exists():
                     temporary_file.unlink()
 
             except OSError:
+
                 app.logger.exception(
                     "Could not remove temporary file: %s",
                     temporary_file
@@ -550,6 +593,7 @@ def clear_history():
     data = request.get_json(silent=True)
 
     if not isinstance(data, dict):
+
         return jsonify({
             "error": "Invalid JSON request"
         }), 400
@@ -561,11 +605,13 @@ def clear_history():
         "task_parallelism",
         "all"
     ]:
+
         return jsonify({
             "error": "Invalid experiment type"
         }), 400
 
     if not benchmark_lock.acquire(blocking=False):
+
         return jsonify({
             "error": "Cannot clear history while a benchmark is running"
         }), 409
@@ -622,8 +668,6 @@ def clear_history():
         cleared_results = 0
         csv_updates = []
 
-        # Prepare empty CSV files while preserving their headers.
-
         for csv_file, default_columns in csv_files:
 
             if not csv_file.exists():
@@ -658,8 +702,6 @@ def clear_history():
 
             csv_updates.append((csv_temp, csv_file))
 
-        # Prepare updated experiment metadata.
-
         json_temp = EXPERIMENTS_FILE.with_name(
             EXPERIMENTS_FILE.name + ".clear.tmp"
         )
@@ -667,10 +709,9 @@ def clear_history():
         temporary_files.append(json_temp)
 
         with open(json_temp, "w", encoding="utf-8") as file:
+
             json.dump(updated_experiments, file, indent=2)
             file.write("\n")
-
-        # Replace CSV files first, then metadata.
 
         for csv_temp, csv_file in csv_updates:
             os.replace(csv_temp, csv_file)
@@ -696,6 +737,7 @@ def clear_history():
         if backup_path is not None:
 
             try:
+
                 restore_backup(backup_path)
 
             except Exception:
@@ -724,10 +766,12 @@ def clear_history():
         for temporary_file in temporary_files:
 
             try:
+
                 if temporary_file.exists():
                     temporary_file.unlink()
 
             except OSError:
+
                 app.logger.exception(
                     "Could not remove temporary file: %s",
                     temporary_file
@@ -742,11 +786,13 @@ def clear_history():
 def run_data_benchmark():
 
     if not ENABLE_BENCHMARKS:
+
         return jsonify({
             "error": "Benchmark execution is disabled on this server"
         }), 403
 
     if not benchmark_lock.acquire(blocking=False):
+
         return jsonify({
             "error": "Another benchmark is already running"
         }), 409
@@ -758,24 +804,25 @@ def run_data_benchmark():
         data = request.get_json(silent=True)
 
         if not isinstance(data, dict):
+
             return jsonify({
                 "error": "Invalid JSON request"
             }), 400
 
         array_size = read_integer(
-            data, "array_size", 1000, 50000000
+            data, "array_size", 1000, MAX_ARRAY_SIZE
         )
 
         warmup_runs = read_integer(
-            data, "warmup_runs", 0, 20
+            data, "warmup_runs", 0, MAX_WARMUP_RUNS
         )
 
         benchmark_runs = read_integer(
-            data, "benchmark_runs", 1, 100
+            data, "benchmark_runs", 1, MAX_BENCHMARK_RUNS
         )
 
         workers = read_workers(
-            data, "workers", 256
+            data, "workers", MAX_WORKERS
         )
 
         experiment = create_experiment(
@@ -798,40 +845,110 @@ def run_data_benchmark():
             ]
         )
 
-        if output.get("benchmark") != "data_parallelism":
+        # Verify benchmark configuration.
+
+        if not isinstance(output, dict):
+
             raise RuntimeError(
-                "Unexpected benchmark output"
+                "Invalid benchmark output"
+            )
+
+        if (
+            output.get("benchmark") != "data_parallelism"
+            or output.get("array_size") != array_size
+            or output.get("warmup_runs") != warmup_runs
+            or output.get("benchmark_runs") != benchmark_runs
+        ):
+
+            raise RuntimeError(
+                "Benchmark configuration mismatch"
             )
 
         results = output.get("results")
 
-        if not isinstance(results, list) or not results:
+        if not isinstance(results, list):
+
             raise RuntimeError(
-                "Benchmark returned no results"
+                "Invalid benchmark results"
             )
 
-        if any(
-            row.get("correctness") != "PASSED"
-            for row in results
+        # Verify requested worker counts.
+
+        returned_workers = []
+
+        for result in results:
+
+            if not isinstance(result, dict):
+
+                raise RuntimeError(
+                    "Invalid benchmark result"
+                )
+
+            worker = result.get("threads")
+
+            if (
+                isinstance(worker, bool)
+                or not isinstance(worker, int)
+            ):
+
+                raise RuntimeError(
+                    "Invalid worker count in benchmark output"
+                )
+
+            returned_workers.append(worker)
+
+        if (
+            len(returned_workers) != len(workers)
+            or set(returned_workers) != set(workers)
         ):
+
             raise RuntimeError(
-                "Benchmark correctness verification failed"
+                "Benchmark returned unexpected worker counts"
             )
 
         rows = []
 
         for result in results:
 
+            if result.get("correctness") != "PASSED":
+
+                raise RuntimeError(
+                    "Benchmark correctness verification failed"
+                )
+
+            threads = result["threads"]
+
+            sequential_ms = read_positive_number(
+                result.get("sequential_ms"),
+                "sequential_ms"
+            )
+
+            parallel_ms = read_positive_number(
+                result.get("parallel_ms"),
+                "parallel_ms"
+            )
+
+            # Calculate metrics using the agreed formulas.
+
+            speedup = sequential_ms / parallel_ms
+
+            efficiency = (
+                speedup / threads
+            ) * 100.0
+
+            if not math.isfinite(speedup) or not math.isfinite(efficiency):
+                raise RuntimeError("Invalid calculated benchmark metrics")
+
             rows.append({
-                "array_size": output["array_size"],
-                "warmup_runs": output["warmup_runs"],
-                "benchmark_runs": output["benchmark_runs"],
-                "threads": result["threads"],
-                "sequential_ms": result["sequential_ms"],
-                "parallel_ms": result["parallel_ms"],
-                "speedup": result["speedup"],
-                "efficiency": result["efficiency"],
-                "correctness": result["correctness"],
+                "array_size": array_size,
+                "warmup_runs": warmup_runs,
+                "benchmark_runs": benchmark_runs,
+                "threads": threads,
+                "sequential_ms": sequential_ms,
+                "parallel_ms": parallel_ms,
+                "speedup": speedup,
+                "efficiency": efficiency,
+                "correctness": "PASSED",
                 "experiment_id": experiment["experiment_id"]
             })
 
@@ -862,6 +979,7 @@ def run_data_benchmark():
     except subprocess.TimeoutExpired:
 
         if experiment is not None:
+
             finish_experiment(
                 experiment,
                 "Failed",
@@ -875,7 +993,9 @@ def run_data_benchmark():
     except Exception as error:
 
         if experiment is not None:
+
             try:
+
                 finish_experiment(
                     experiment,
                     "Failed",
@@ -883,6 +1003,7 @@ def run_data_benchmark():
                 )
 
             except Exception:
+
                 app.logger.exception(
                     "Could not update failed experiment metadata"
                 )
@@ -905,11 +1026,13 @@ def run_data_benchmark():
 def run_task_benchmark():
 
     if not ENABLE_BENCHMARKS:
+
         return jsonify({
             "error": "Benchmark execution is disabled on this server"
         }), 403
 
     if not benchmark_lock.acquire(blocking=False):
+
         return jsonify({
             "error": "Another benchmark is already running"
         }), 409
@@ -921,33 +1044,36 @@ def run_task_benchmark():
         data = request.get_json(silent=True)
 
         if not isinstance(data, dict):
+
             return jsonify({
                 "error": "Invalid JSON request"
             }), 400
 
         tasks = read_integer(
-            data, "tasks", 1, 64
+            data, "tasks", 1, MAX_TASKS
         )
 
         work = read_integer(
-            data, "work_per_task", 1000, 10000000
+            data, "work_per_task", 1000, MAX_WORK_PER_TASK
         )
 
-        if tasks * work > 100000000:
+        if tasks * work > MAX_TASK_TOTAL_WORK:
+
             raise ValueError(
-                "Total workload cannot exceed 100 million iterations"
+                f"Total workload cannot exceed "
+                f"{MAX_TASK_TOTAL_WORK:,} iterations"
             )
 
         warmup_runs = read_integer(
-            data, "warmup_runs", 0, 20
+            data, "warmup_runs", 0, MAX_WARMUP_RUNS
         )
 
         benchmark_runs = read_integer(
-            data, "benchmark_runs", 1, 100
+            data, "benchmark_runs", 1, MAX_BENCHMARK_RUNS
         )
 
         workers = read_workers(
-            data, "workers", tasks
+            data, "workers", min(tasks, MAX_WORKERS)
         )
 
         experiment = create_experiment(
@@ -972,41 +1098,167 @@ def run_task_benchmark():
             ]
         )
 
-        if output.get("benchmark") != "task_parallelism":
+        # Verify benchmark configuration.
+
+        if not isinstance(output, dict):
+
             raise RuntimeError(
-                "Unexpected benchmark output"
+                "Invalid benchmark output"
+            )
+
+        if (
+            output.get("benchmark") != "task_parallelism"
+            or output.get("tasks") != tasks
+            or output.get("work_per_task") != work
+            or output.get("warmup_runs") != warmup_runs
+            or output.get("benchmark_runs") != benchmark_runs
+        ):
+
+            raise RuntimeError(
+                "Benchmark configuration mismatch"
             )
 
         results = output.get("results")
 
-        if not isinstance(results, list) or not results:
+        if not isinstance(results, list):
+
             raise RuntimeError(
-                "Benchmark returned no results"
+                "Invalid task benchmark results"
             )
 
-        if any(
-            row.get("correctness") != "PASSED"
-            for row in results
+        # Find sequential baseline.
+
+        sequential_results = [
+            result for result in results
+            if (
+                isinstance(result, dict)
+                and result.get("method") == "Sequential"
+            )
+        ]
+
+        if (
+            len(sequential_results) != 1
+            or sequential_results[0].get("workers") != 1
         ):
+
             raise RuntimeError(
-                "Benchmark correctness verification failed"
+                "Invalid sequential benchmark result"
+            )
+
+        sequential_ms = read_positive_number(
+            sequential_results[0].get("execution_ms"),
+            "sequential execution time"
+        )
+
+        if sequential_results[0].get("correctness") != "PASSED":
+
+            raise RuntimeError(
+                "Sequential benchmark correctness verification failed"
+            )
+
+        # Verify expected methods and worker counts.
+
+        expected_results = {
+            ("Sequential", 1),
+            ("Separate Threads", tasks)
+        }
+
+        expected_results.update(
+            ("Thread Pool", worker)
+            for worker in workers
+        )
+
+        returned_results = set()
+
+        for result in results:
+
+            if not isinstance(result, dict):
+
+                raise RuntimeError(
+                    "Invalid task benchmark result"
+                )
+
+            method = result.get("method")
+            worker = result.get("workers")
+
+            if (
+                not isinstance(method, str)
+                or isinstance(worker, bool)
+                or not isinstance(worker, int)
+            ):
+
+                raise RuntimeError(
+                    "Invalid task benchmark method or worker count"
+                )
+
+            key = (method, worker)
+
+            if key in returned_results:
+
+                raise RuntimeError(
+                    "Duplicate task benchmark result"
+                )
+
+            returned_results.add(key)
+
+        if returned_results != expected_results:
+
+            raise RuntimeError(
+                "Task benchmark returned unexpected methods or worker counts"
             )
 
         rows = []
 
         for result in results:
 
+            if result.get("correctness") != "PASSED":
+
+                raise RuntimeError(
+                    "Task benchmark correctness verification failed"
+                )
+
+            method = result["method"]
+            worker = result["workers"]
+
+            execution_ms = read_positive_number(
+                result.get("execution_ms"),
+                "task execution time"
+            )
+
+            if method == "Sequential":
+
+                speedup = 1.0
+                efficiency = ""
+
+            else:
+
+                speedup = sequential_ms / execution_ms
+
+                if method == "Separate Threads":
+
+                    efficiency = (
+                        speedup / tasks
+                    ) * 100.0
+
+                else:
+
+                    efficiency = (
+                        speedup / worker
+                    ) * 100.0
+
+            if not math.isfinite(speedup) or (
+                efficiency != "" and not math.isfinite(efficiency)
+            ):
+                raise RuntimeError("Invalid calculated benchmark metrics")
+
             rows.append({
-                "tasks": output["tasks"],
-                "workers": result["workers"],
-                "method": result["method"],
-                "execution_ms": result["execution_ms"],
-                "speedup": result["speedup"],
-                "efficiency": (
-                    "" if result["efficiency"] is None
-                    else result["efficiency"]
-                ),
-                "correctness": result["correctness"],
+                "tasks": tasks,
+                "workers": worker,
+                "method": method,
+                "execution_ms": execution_ms,
+                "speedup": speedup,
+                "efficiency": efficiency,
+                "correctness": "PASSED",
                 "experiment_id": experiment["experiment_id"]
             })
 
@@ -1037,6 +1289,7 @@ def run_task_benchmark():
     except subprocess.TimeoutExpired:
 
         if experiment is not None:
+
             finish_experiment(
                 experiment,
                 "Failed",
@@ -1050,7 +1303,9 @@ def run_task_benchmark():
     except Exception as error:
 
         if experiment is not None:
+
             try:
+
                 finish_experiment(
                     experiment,
                     "Failed",
@@ -1058,6 +1313,7 @@ def run_task_benchmark():
                 )
 
             except Exception:
+
                 app.logger.exception(
                     "Could not update failed experiment metadata"
                 )
