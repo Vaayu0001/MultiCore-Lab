@@ -14,3 +14,7 @@ __pycache__/
 
 # Editor files
 .vscode/
+
+# Runtime experiment backups
+results/backups/
+results/experiments.json.backup
