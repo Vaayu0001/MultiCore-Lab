@@ -10,7 +10,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
-
         * {
             margin: 0;
             padding: 0;
@@ -179,6 +178,94 @@
             font-weight: bold;
         }
 
+        /* Benchmark Configuration */
+
+        .benchmark-box {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            margin: 20px 0;
+            box-shadow: 0 3px 12px rgba(0,0,0,0.04);
+        }
+
+        .benchmark-box h3 {
+            margin-bottom: 8px;
+            font-size: 17px;
+        }
+
+        .benchmark-description {
+            color: #64748b;
+            font-size: 13px;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+
+        .config-field {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+        }
+
+        .config-field label {
+            font-size: 13px;
+            font-weight: bold;
+            color: #475569;
+        }
+
+        .config-field input {
+            padding: 11px;
+            border: 1px solid #cbd5e1;
+            border-radius: 7px;
+            font-size: 14px;
+            width: 100%;
+        }
+
+        .config-field input:focus {
+            outline: none;
+            border-color: #2563eb;
+        }
+
+        .benchmark-button {
+            margin-top: 20px;
+            padding: 12px 22px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 7px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .benchmark-button:hover {
+            background: #1d4ed8;
+        }
+
+        .benchmark-button:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+
+        .benchmark-status {
+            margin-top: 15px;
+            font-size: 13px;
+            color: #64748b;
+        }
+
+        .benchmark-status.success {
+            color: #15803d;
+        }
+
+        .benchmark-status.error {
+            color: #dc2626;
+        }
+
         footer {
             text-align: center;
             color: #64748b;
@@ -188,7 +275,6 @@
         }
 
         @media (max-width: 1000px) {
-
             .cards {
                 grid-template-columns: repeat(2, 1fr);
             }
@@ -196,11 +282,9 @@
             .charts {
                 grid-template-columns: 1fr;
             }
-
         }
 
         @media (max-width: 650px) {
-
             .sidebar {
                 width: 100%;
                 height: auto;
@@ -221,7 +305,8 @@
                 padding: 18px;
             }
 
-            .cards {
+            .cards,
+            .config-grid {
                 grid-template-columns: 1fr;
             }
 
@@ -229,11 +314,8 @@
                 align-items: flex-start;
                 flex-direction: column;
             }
-
         }
-
     </style>
-
 </head>
 
 <body>
@@ -247,15 +329,11 @@
         <p>Performance Analysis System</p>
 
         <a href="#overview">Dashboard Overview</a>
-
         <a href="#data">Data Parallelism</a>
-
         <a href="#task">Task Parallelism</a>
-
         <a href="#results">Benchmark Results</a>
 
     </div>
-
 
     <!-- Main Content -->
 
@@ -271,12 +349,11 @@
                 </p>
             </div>
 
-            <div class="status">
+            <div class="status" id="dashboardStatus">
                 ● Dashboard Connected
             </div>
 
         </div>
-
 
         <!-- Overview -->
 
@@ -312,49 +389,120 @@
 
         </div>
 
-
         <!-- Data Parallelism -->
 
         <h2 class="section-title" id="data">
             Data Parallelism Analysis
         </h2>
 
-        <div class="charts">
+        <div class="benchmark-box">
 
-            <div class="chart-box">
+            <h3>Configure Data Parallelism Benchmark</h3>
 
-                <h3>Sequential vs Parallel Execution Time</h3>
+            <p class="benchmark-description">
+                Configure the array size, warm-up runs, benchmark repetitions
+                and worker counts. The actual C++ benchmark will execute
+                using these settings.
+            </p>
 
-                <div class="chart-container">
-                    <canvas id="executionChart"></canvas>
+            <form id="dataForm">
+
+                <div class="config-grid">
+
+                    <div class="config-field">
+                        <label for="arraySizeInput">Array Size</label>
+                        <input
+                            type="number"
+                            id="arraySizeInput"
+                            value="10000000"
+                            min="1000"
+                            max="50000000"
+                            required
+                        >
+                    </div>
+
+                    <div class="config-field">
+                        <label for="dataWarmup">Warm-up Runs</label>
+                        <input
+                            type="number"
+                            id="dataWarmup"
+                            value="2"
+                            min="0"
+                            max="20"
+                            required
+                        >
+                    </div>
+
+                    <div class="config-field">
+                        <label for="dataRuns">Benchmark Runs</label>
+                        <input
+                            type="number"
+                            id="dataRuns"
+                            value="15"
+                            min="1"
+                            max="100"
+                            required
+                        >
+                    </div>
+
+                    <div class="config-field">
+                        <label for="dataWorkers">
+                            Worker Counts (comma separated)
+                        </label>
+                        <input
+                            type="text"
+                            id="dataWorkers"
+                            value="1,2,4,8"
+                            required
+                        >
+                    </div>
+
                 </div>
 
-            </div>
+                <button
+                    type="submit"
+                    class="benchmark-button"
+                    id="dataButton"
+                >
+                    Run Data Benchmark
+                </button>
 
+                <p
+                    class="benchmark-status"
+                    id="dataStatus"
+                    aria-live="polite"
+                >
+                    Ready to run benchmark.
+                </p>
 
-            <div class="chart-box">
-
-                <h3>Speedup vs Number of Threads</h3>
-
-                <div class="chart-container">
-                    <canvas id="speedupChart"></canvas>
-                </div>
-
-            </div>
-
-
-            <div class="chart-box">
-
-                <h3>Parallel Efficiency</h3>
-
-                <div class="chart-container">
-                    <canvas id="efficiencyChart"></canvas>
-                </div>
-
-            </div>
+            </form>
 
         </div>
 
+        <div class="charts">
+
+            <div class="chart-box">
+                <h3>Sequential vs Parallel Execution Time</h3>
+                <div class="chart-container">
+                    <canvas id="executionChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-box">
+                <h3>Speedup vs Number of Threads</h3>
+                <div class="chart-container">
+                    <canvas id="speedupChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-box">
+                <h3>Parallel Efficiency</h3>
+                <div class="chart-container">
+                    <canvas id="efficiencyChart"></canvas>
+                </div>
+            </div>
+
+        </div>
 
         <!-- Task Parallelism -->
 
@@ -362,42 +510,126 @@
             Task Parallelism Analysis
         </h2>
 
-        <div class="charts">
+        <div class="benchmark-box">
 
-            <div class="chart-box">
+            <h3>Configure Task Parallelism Benchmark</h3>
 
-                <h3>Execution Time Comparison</h3>
+            <p class="benchmark-description">
+                Configure the number of tasks, work per task,
+                warm-up runs, benchmark repetitions and thread-pool workers.
+                Separate threads will continue to use one thread per task.
+            </p>
 
-                <div class="chart-container">
-                    <canvas id="taskExecutionChart"></canvas>
+            <form id="taskForm">
+
+                <div class="config-grid">
+
+                    <div class="config-field">
+                        <label for="taskCount">Number of Tasks</label>
+                        <input
+                            type="number"
+                            id="taskCount"
+                            value="8"
+                            min="1"
+                            max="64"
+                            required
+                        >
+                    </div>
+
+                    <div class="config-field">
+                        <label for="taskWork">Work Per Task</label>
+                        <input
+                            type="number"
+                            id="taskWork"
+                            value="2000000"
+                            min="1000"
+                            max="10000000"
+                            required
+                        >
+                    </div>
+
+                    <div class="config-field">
+                        <label for="taskWarmup">Warm-up Runs</label>
+                        <input
+                            type="number"
+                            id="taskWarmup"
+                            value="2"
+                            min="0"
+                            max="20"
+                            required
+                        >
+                    </div>
+
+                    <div class="config-field">
+                        <label for="taskRuns">Benchmark Runs</label>
+                        <input
+                            type="number"
+                            id="taskRuns"
+                            value="15"
+                            min="1"
+                            max="100"
+                            required
+                        >
+                    </div>
+
+                    <div class="config-field">
+                        <label for="taskWorkers">
+                            Thread-Pool Worker Counts (comma separated)
+                        </label>
+                        <input
+                            type="text"
+                            id="taskWorkers"
+                            value="1,3"
+                            required
+                        >
+                    </div>
+
                 </div>
 
-            </div>
+                <button
+                    type="submit"
+                    class="benchmark-button"
+                    id="taskButton"
+                >
+                    Run Task Benchmark
+                </button>
 
+                <p
+                    class="benchmark-status"
+                    id="taskStatus"
+                    aria-live="polite"
+                >
+                    Ready to run benchmark.
+                </p>
 
-            <div class="chart-box">
-
-                <h3>Task Speedup Comparison</h3>
-
-                <div class="chart-container">
-                    <canvas id="taskSpeedupChart"></canvas>
-                </div>
-
-            </div>
-
-
-            <div class="chart-box">
-
-                <h3>Task Parallelism Efficiency</h3>
-
-                <div class="chart-container">
-                    <canvas id="taskEfficiencyChart"></canvas>
-                </div>
-
-            </div>
+            </form>
 
         </div>
 
+        <div class="charts">
+
+            <div class="chart-box">
+                <h3>Execution Time Comparison</h3>
+                <div class="chart-container">
+                    <canvas id="taskExecutionChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-box">
+                <h3>Task Speedup Comparison</h3>
+                <div class="chart-container">
+                    <canvas id="taskSpeedupChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-box">
+                <h3>Task Parallelism Efficiency</h3>
+                <div class="chart-container">
+                    <canvas id="taskEfficiencyChart"></canvas>
+                </div>
+            </div>
+
+        </div>
 
         <!-- Benchmark Table -->
 
@@ -410,7 +642,6 @@
             <table>
 
                 <thead>
-
                     <tr>
                         <th>Method</th>
                         <th>Workers</th>
@@ -419,17 +650,13 @@
                         <th>Efficiency</th>
                         <th>Status</th>
                     </tr>
-
                 </thead>
 
-                <tbody id="taskTable">
-
-                </tbody>
+                <tbody id="taskTable"></tbody>
 
             </table>
 
         </div>
-
 
         <footer>
             MultiCore Lab | Data Parallelism and Task Parallelism
@@ -437,16 +664,19 @@
 
     </div>
 
-
     <script>
 
-        let charts = [];
+        const charts = {};
 
         function createChart(id, type, labels, datasets) {
 
+            if (charts[id]) {
+                charts[id].destroy();
+            }
+
             const ctx = document.getElementById(id);
 
-            const chart = new Chart(ctx, {
+            charts[id] = new Chart(ctx, {
 
                 type: type,
 
@@ -456,7 +686,6 @@
                 },
 
                 options: {
-
                     responsive: true,
                     maintainAspectRatio: false,
 
@@ -471,15 +700,261 @@
                             beginAtZero: true
                         }
                     }
+                }
+            });
+        }
+
+        function setStatus(id, message, type) {
+
+            const element = document.getElementById(id);
+
+            element.textContent = message;
+            element.className = "benchmark-status";
+
+            if (type) {
+                element.classList.add(type);
+            }
+        }
+
+        function readWorkers(id, maximum) {
+
+            const input = document.getElementById(id).value.trim();
+
+            if (!input) {
+                throw new Error("Enter at least one worker count.");
+            }
+
+            const values = input.split(",").map(value => value.trim());
+
+            const workers = values.map(value => {
+
+                if (!/^\d+$/.test(value)) {
+                    throw new Error("Worker counts must be integers.");
+                }
+
+                const number = Number(value);
+
+                if (number < 1 || number > maximum) {
+                    throw new Error(
+                        `Worker counts must be between 1 and ${maximum}.`
+                    );
+                }
+
+                return number;
+            });
+
+            if (new Set(workers).size !== workers.length) {
+                throw new Error("Duplicate worker counts are not allowed.");
+            }
+
+            return workers;
+        }
+
+        function readNumber(id, minimum, maximum, label) {
+
+            const input = document.getElementById(id);
+
+            if (!input.checkValidity()) {
+                throw new Error(
+                    `${label} must be between ${minimum} and ${maximum}.`
+                );
+            }
+
+            const value = input.valueAsNumber;
+
+            if (!Number.isInteger(value)) {
+                throw new Error(`${label} must be an integer.`);
+            }
+
+            return value;
+        }
+
+        async function runBenchmark(endpoint, payload, buttonId, statusId) {
+
+            const button = document.getElementById(buttonId);
+
+            button.disabled = true;
+            setStatus(statusId, "Benchmark running. Please wait...", "");
+
+            try {
+
+                const response = await fetch(endpoint, {
+
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+
+                    body: JSON.stringify(payload)
+
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(
+                        result.error || "Benchmark execution failed."
+                    );
+                }
+
+                setStatus(
+                    statusId,
+                    "Benchmark completed. Updating dashboard...",
+                    "success"
+                );
+
+                await loadDashboard();
+
+                setStatus(
+                    statusId,
+                    result.message,
+                    "success"
+                );
+
+            }
+
+            catch (error) {
+
+                console.error(error);
+
+                setStatus(
+                    statusId,
+                    error.message,
+                    "error"
+                );
+
+            }
+
+            finally {
+                button.disabled = false;
+            }
+        }
+
+        // Data Benchmark Form
+
+        document.getElementById("dataForm").addEventListener(
+            "submit",
+            async function(event) {
+
+                event.preventDefault();
+
+                try {
+
+                    const payload = {
+
+                        array_size: readNumber(
+                            "arraySizeInput",
+                            1000,
+                            50000000,
+                            "Array size"
+                        ),
+
+                        warmup_runs: readNumber(
+                            "dataWarmup",
+                            0,
+                            20,
+                            "Warm-up runs"
+                        ),
+
+                        benchmark_runs: readNumber(
+                            "dataRuns",
+                            1,
+                            100,
+                            "Benchmark runs"
+                        ),
+
+                        workers: readWorkers("dataWorkers", 256)
+
+                    };
+
+                    await runBenchmark(
+                        "/api/run/data",
+                        payload,
+                        "dataButton",
+                        "dataStatus"
+                    );
 
                 }
 
-            });
+                catch (error) {
+                    setStatus("dataStatus", error.message, "error");
+                }
 
-            charts.push(chart);
+            }
+        );
 
-        }
+        // Task Benchmark Form
 
+        document.getElementById("taskForm").addEventListener(
+            "submit",
+            async function(event) {
+
+                event.preventDefault();
+
+                try {
+
+                    const tasks = readNumber(
+                        "taskCount",
+                        1,
+                        64,
+                        "Number of tasks"
+                    );
+
+                    const work = readNumber(
+                        "taskWork",
+                        1000,
+                        10000000,
+                        "Work per task"
+                    );
+
+                    if (tasks * work > 100000000) {
+                        throw new Error(
+                            "Total workload cannot exceed 100 million iterations."
+                        );
+                    }
+
+                    const payload = {
+
+                        tasks: tasks,
+
+                        work_per_task: work,
+
+                        warmup_runs: readNumber(
+                            "taskWarmup",
+                            0,
+                            20,
+                            "Warm-up runs"
+                        ),
+
+                        benchmark_runs: readNumber(
+                            "taskRuns",
+                            1,
+                            100,
+                            "Benchmark runs"
+                        ),
+
+                        workers: readWorkers("taskWorkers", tasks)
+
+                    };
+
+                    await runBenchmark(
+                        "/api/run/task",
+                        payload,
+                        "taskButton",
+                        "taskStatus"
+                    );
+
+                }
+
+                catch (error) {
+                    setStatus("taskStatus", error.message, "error");
+                }
+
+            }
+        );
+
+        // Load Dashboard Data
 
         async function loadDashboard() {
 
@@ -488,7 +963,7 @@
                 const response = await fetch("/api/data");
 
                 if (!response.ok) {
-                    throw new Error("Could not load benchmark data");
+                    throw new Error("Could not load benchmark data.");
                 }
 
                 const data = await response.json();
@@ -496,15 +971,15 @@
                 const dp = data.data_parallelism;
                 const tp = data.task_parallelism;
 
-
                 if (dp.length === 0 || tp.length === 0) {
-                    throw new Error("Benchmark CSV data is missing");
+                    throw new Error("Benchmark CSV data is missing.");
                 }
 
+                // Data values
 
-                // Convert CSV values into numbers
-
-                const threads = dp.map(row => Number(row.threads));
+                const threads = dp.map(
+                    row => Number(row.threads)
+                );
 
                 const sequential = dp.map(
                     row => Number(row.sequential_ms)
@@ -522,17 +997,14 @@
                     row => Number(row.efficiency)
                 );
 
-
                 // Overview cards
 
                 document.getElementById("arraySize").textContent =
-                    Number(dp[0].array_size).toLocaleString("en-IN");
-
-                const maxSpeedup = Math.max(...speedup);
+                    Number(dp[dp.length - 1].array_size)
+                    .toLocaleString("en-IN");
 
                 document.getElementById("dataSpeedup").textContent =
-                    maxSpeedup.toFixed(2) + "x";
-
+                    Math.max(...speedup).toFixed(2) + "x";
 
                 // Task data
 
@@ -554,6 +1026,14 @@
                 document.getElementById("correctness").textContent =
                     allPassed ? "PASSED" : "FAILED";
 
+                // Dashboard connection status
+
+                const dashboardStatus =
+                    document.getElementById("dashboardStatus");
+
+                dashboardStatus.textContent = "● Dashboard Connected";
+                dashboardStatus.style.background = "#dcfce7";
+                dashboardStatus.style.color = "#15803d";
 
                 // Data Parallelism Charts
 
@@ -573,7 +1053,6 @@
                     ]
                 );
 
-
                 createChart(
                     "speedupChart",
                     "line",
@@ -586,7 +1065,6 @@
                         }
                     ]
                 );
-
 
                 createChart(
                     "efficiencyChart",
@@ -601,10 +1079,11 @@
                     ]
                 );
 
-
                 // Task Parallelism Charts
 
-                const methods = tp.map(row => row.method);
+                const methods = tp.map(
+                    row => row.method
+                );
 
                 const taskSpeedups = tp.map(
                     row => Number(row.speedup)
@@ -615,7 +1094,6 @@
                         ? null
                         : Number(row.efficiency)
                 );
-
 
                 createChart(
                     "taskExecutionChart",
@@ -629,7 +1107,6 @@
                     ]
                 );
 
-
                 createChart(
                     "taskSpeedupChart",
                     "bar",
@@ -642,7 +1119,6 @@
                     ]
                 );
 
-
                 createChart(
                     "taskEfficiencyChart",
                     "bar",
@@ -654,7 +1130,6 @@
                         }
                     ]
                 );
-
 
                 // Task Results Table
 
@@ -701,26 +1176,16 @@
 
                 console.error(error);
 
-                document.querySelector(".status").textContent =
-                    "● Data Loading Failed";
+                const dashboardStatus =
+                    document.getElementById("dashboardStatus");
 
-                document.querySelector(".status").style.background =
-                    "#fee2e2";
-
-                document.querySelector(".status").style.color =
-                    "#b91c1c";
-
-                document.querySelector(".main").insertAdjacentHTML(
-                    "beforeend",
-                    `<p style="color:#b91c1c;margin-top:20px">
-                        ${error.message}
-                    </p>`
-                );
+                dashboardStatus.textContent = "● Data Loading Failed";
+                dashboardStatus.style.background = "#fee2e2";
+                dashboardStatus.style.color = "#b91c1c";
 
             }
 
         }
-
 
         loadDashboard();
 

@@ -8,23 +8,28 @@
 #include <chrono>
 #include <algorithm>
 #include <iomanip>
-#include <fstream>
+#include <sstream>
+#include <string>
+#include <stdexcept>
+
 using namespace std;
 
-const int TASKS = 8;
-const int WORKERS = 3;
-const int WARMUP_RUNS = 2;
-const int RUNS = 15;
-const int WORK = 2000000;
-
 using ull = unsigned long long;
+
+int TASKS = 8;
+int WORK = 2000000;
+int WARMUP_RUNS = 2;
+int RUNS = 15;
+
+vector<int> workerCounts = {1, 3};
 
 ull calculateTask(int id)
 {
     ull result = id + 1;
 
     for (int i = 0; i < WORK; i++)
-        result = (result * 1664525ULL + 1013904223ULL) % 4294967296ULL;
+        result = (result * 1664525ULL + 1013904223ULL)
+                 % 4294967296ULL;
 
     return result;
 }
@@ -171,169 +176,249 @@ double measureTime(Function function)
 double medianTime(vector<double> times)
 {
     sort(times.begin(), times.end());
-
     return times[times.size() / 2];
 }
 
-int main()
+int readNumber(string value, string name)
 {
-    vector<ull> expected = sequentialExecution();
+    size_t position = 0;
+    int number = stoi(value, &position);
 
-    // Open CSV file
-    ofstream csvFile("results/task_parallelism.csv");
+    if (position != value.size())
+        throw invalid_argument("Invalid " + name);
 
-    if (!csvFile.is_open())
+    return number;
+}
+
+vector<int> readWorkers(string input)
+{
+    vector<int> workers;
+    stringstream stream(input);
+    string value;
+
+    while (getline(stream, value, ','))
     {
-        cout << "Could not create results/task_parallelism.csv\n";
+        if (value.empty())
+            throw invalid_argument("Invalid worker list");
+
+        int n = readNumber(value, "worker count");
+
+        if (n < 1 || n > TASKS)
+            throw invalid_argument("Workers must be between 1 and number of tasks");
+
+        if (find(workers.begin(), workers.end(), n) != workers.end())
+            throw invalid_argument("Duplicate worker count");
+
+        workers.push_back(n);
+    }
+
+    if (workers.empty())
+        throw invalid_argument("Worker list cannot be empty");
+
+    return workers;
+}
+
+int main(int argc, char* argv[])
+{
+    try
+    {
+        if (argc != 1 && argc != 6)
+            throw invalid_argument(
+                "Usage: program [tasks work warmup_runs benchmark_runs workers]"
+            );
+
+        if (argc == 6)
+        {
+            TASKS = readNumber(argv[1], "task count");
+            WORK = readNumber(argv[2], "work per task");
+            WARMUP_RUNS = readNumber(argv[3], "warmup runs");
+            RUNS = readNumber(argv[4], "benchmark runs");
+
+            if (TASKS < 1 || TASKS > 64)
+                throw invalid_argument("Tasks must be between 1 and 64");
+
+            if (WORK < 1000 || WORK > 10000000)
+                throw invalid_argument("Work must be between 1000 and 10000000");
+
+            if (1LL * TASKS * WORK > 100000000)
+                throw invalid_argument("Total workload cannot exceed 100 million iterations");
+
+            if (WARMUP_RUNS < 0 || WARMUP_RUNS > 20)
+                throw invalid_argument("Warmup runs must be between 0 and 20");
+
+            if (RUNS < 1 || RUNS > 100)
+                throw invalid_argument("Benchmark runs must be between 1 and 100");
+
+            workerCounts = readWorkers(argv[5]);
+        }
+
+        vector<ull> expected = sequentialExecution();
+
+        vector<double> seqTimes;
+        vector<double> singleThreadTimes;
+        vector<double> threadTimes;
+        vector<double> singlePoolTimes;
+
+        vector<vector<double>> poolTimes(workerCounts.size());
+
+        // Warm-up
+        for (int i = 0; i < WARMUP_RUNS; i++)
+        {
+            sequentialExecution();
+            singleThreadExecution();
+            separateThreads();
+
+            poolExecution(1);
+
+            for (int workers : workerCounts)
+                poolExecution(workers);
+        }
+
+        // Benchmark
+        for (int i = 0; i < RUNS; i++)
+        {
+            auto runSequential = [&]()
+            {
+                seqTimes.push_back(measureTime([]()
+                {
+                    sequentialExecution();
+                }));
+            };
+
+            auto runSingleThread = [&]()
+            {
+                singleThreadTimes.push_back(measureTime([]()
+                {
+                    singleThreadExecution();
+                }));
+            };
+
+            auto runThreads = [&]()
+            {
+                threadTimes.push_back(measureTime([]()
+                {
+                    separateThreads();
+                }));
+            };
+
+            auto runSinglePool = [&]()
+            {
+                singlePoolTimes.push_back(measureTime([]()
+                {
+                    poolExecution(1);
+                }));
+            };
+
+            auto runPools = [&]()
+            {
+                for (size_t j = 0; j < workerCounts.size(); j++)
+                {
+                    int workers = workerCounts[j];
+
+                    poolTimes[j].push_back(measureTime([workers]()
+                    {
+                        poolExecution(workers);
+                    }));
+                }
+            };
+
+            if (i % 2 == 0)
+            {
+                runSequential();
+                runSingleThread();
+                runThreads();
+                runSinglePool();
+                runPools();
+            }
+            else
+            {
+                runPools();
+                runSinglePool();
+                runThreads();
+                runSingleThread();
+                runSequential();
+            }
+        }
+
+        bool correct = (expected == singleThreadExecution() &&
+                        expected == separateThreads() &&
+                        expected == poolExecution(1));
+
+        for (int workers : workerCounts)
+        {
+            if (expected != poolExecution(workers))
+                correct = false;
+        }
+
+        double seq = medianTime(seqTimes);
+        double singleThread = medianTime(singleThreadTimes);
+        double threads = medianTime(threadTimes);
+        double singlePool = medianTime(singlePoolTimes);
+
+        double threadSpeedup = seq / threads;
+        double threadEfficiency =
+            (singleThread / threads) / TASKS * 100.0;
+
+        cout << fixed << setprecision(6);
+
+        cout << "{";
+        cout << "\"benchmark\":\"task_parallelism\",";
+        cout << "\"tasks\":" << TASKS << ",";
+        cout << "\"work_per_task\":" << WORK << ",";
+        cout << "\"warmup_runs\":" << WARMUP_RUNS << ",";
+        cout << "\"benchmark_runs\":" << RUNS << ",";
+        cout << "\"results\":[";
+
+        cout << "{";
+        cout << "\"workers\":1,";
+        cout << "\"method\":\"Sequential\",";
+        cout << "\"execution_ms\":" << seq << ",";
+        cout << "\"speedup\":1.0,";
+        cout << "\"efficiency\":null,";
+        cout << "\"correctness\":\""
+             << (correct ? "PASSED" : "FAILED") << "\"";
+        cout << "},";
+
+        cout << "{";
+        cout << "\"workers\":" << TASKS << ",";
+        cout << "\"method\":\"Separate Threads\",";
+        cout << "\"execution_ms\":" << threads << ",";
+        cout << "\"speedup\":" << threadSpeedup << ",";
+        cout << "\"efficiency\":" << threadEfficiency << ",";
+        cout << "\"correctness\":\""
+             << (correct ? "PASSED" : "FAILED") << "\"";
+        cout << "},";
+
+        for (size_t i = 0; i < workerCounts.size(); i++)
+        {
+            int workers = workerCounts[i];
+
+            double pool = medianTime(poolTimes[i]);
+            double speedup = seq / pool;
+            double efficiency =
+                (singlePool / pool) / workers * 100.0;
+
+            cout << "{";
+            cout << "\"workers\":" << workers << ",";
+            cout << "\"method\":\"Thread Pool\",";
+            cout << "\"execution_ms\":" << pool << ",";
+            cout << "\"speedup\":" << speedup << ",";
+            cout << "\"efficiency\":" << efficiency << ",";
+            cout << "\"correctness\":\""
+                 << (correct ? "PASSED" : "FAILED") << "\"";
+            cout << "}";
+
+            if (i + 1 < workerCounts.size())
+                cout << ",";
+        }
+
+        cout << "]}";
+
+        return correct ? 0 : 1;
+    }
+    catch (const exception& error)
+    {
+        cerr << "Error: " << error.what() << endl;
         return 1;
     }
-
-    csvFile << "tasks,workers,method,execution_ms,speedup,efficiency,correctness\n";
-
-    vector<double> seqTimes;
-    vector<double> singleThreadTimes;
-    vector<double> threadTimes;
-    vector<double> singlePoolTimes;
-    vector<double> poolTimes;
-
-    // Warm-up
-    for (int i = 0; i < WARMUP_RUNS; i++)
-    {
-        sequentialExecution();
-        singleThreadExecution();
-        separateThreads();
-        poolExecution(1);
-        poolExecution(WORKERS);
-    }
-
-    // Benchmark
-    for (int i = 0; i < RUNS; i++)
-    {
-        if (i % 2 == 0)
-        {
-            seqTimes.push_back(measureTime([]()
-            {
-                sequentialExecution();
-            }));
-
-            singleThreadTimes.push_back(measureTime([]()
-            {
-                singleThreadExecution();
-            }));
-
-            threadTimes.push_back(measureTime([]()
-            {
-                separateThreads();
-            }));
-
-            singlePoolTimes.push_back(measureTime([]()
-            {
-                poolExecution(1);
-            }));
-
-            poolTimes.push_back(measureTime([]()
-            {
-                poolExecution(WORKERS);
-            }));
-        }
-        else
-        {
-            poolTimes.push_back(measureTime([]()
-            {
-                poolExecution(WORKERS);
-            }));
-
-            singlePoolTimes.push_back(measureTime([]()
-            {
-                poolExecution(1);
-            }));
-
-            threadTimes.push_back(measureTime([]()
-            {
-                separateThreads();
-            }));
-
-            singleThreadTimes.push_back(measureTime([]()
-            {
-                singleThreadExecution();
-            }));
-
-            seqTimes.push_back(measureTime([]()
-            {
-                sequentialExecution();
-            }));
-        }
-    }
-
-    vector<ull> threadResult = separateThreads();
-    vector<ull> singleThreadResult = singleThreadExecution();
-    vector<ull> poolResult = poolExecution(WORKERS);
-    vector<ull> singlePoolResult = poolExecution(1);
-
-    bool correct = (expected == threadResult &&
-                    expected == singleThreadResult &&
-                    expected == poolResult &&
-                    expected == singlePoolResult);
-
-    double seq = medianTime(seqTimes);
-    double singleThread = medianTime(singleThreadTimes);
-    double threads = medianTime(threadTimes);
-    double singlePool = medianTime(singlePoolTimes);
-    double pool = medianTime(poolTimes);
-
-    double threadSpeedup = seq / threads;
-    double poolSpeedup = seq / pool;
-
-    double threadEfficiency =
-        (singleThread / threads) / TASKS * 100.0;
-
-    double poolEfficiency =
-        (singlePool / pool) / WORKERS * 100.0;
-
-    cout << "\n--- Task Parallelism Benchmark ---\n";
-    cout << "Number of Tasks: " << TASKS << endl;
-    cout << "Separate Threads: " << TASKS << endl;
-    cout << "Thread Pool Workers: " << WORKERS << endl;
-    cout << "Warm-up Runs: " << WARMUP_RUNS << endl;
-    cout << "Benchmark Runs: " << RUNS << endl;
-
-    cout << fixed << setprecision(2);
-
-    cout << "\nMethod\t\tTime(ms)\tSpeedup\tEfficiency\n";
-
-    cout << "Sequential\t" << seq << "\t\t1.00x\t-\n";
-
-    cout << "Threads\t\t" << threads << "\t\t"
-         << threadSpeedup << "x\t"
-         << threadEfficiency << "%\n";
-
-    cout << "Thread Pool\t" << pool << "\t\t"
-         << poolSpeedup << "x\t"
-         << poolEfficiency << "%\n";
-
-    cout << "\nCorrectness: "
-         << (correct ? "PASSED" : "FAILED") << endl;
-
-    // Save results to CSV
-    csvFile << fixed << setprecision(6);
-
-    csvFile << TASKS << ",1,Sequential,"
-            << seq << ",1.0,,"
-            << (correct ? "PASSED" : "FAILED") << "\n";
-
-    csvFile << TASKS << "," << TASKS << ",Separate Threads,"
-            << threads << "," << threadSpeedup << ","
-            << threadEfficiency << ","
-            << (correct ? "PASSED" : "FAILED") << "\n";
-
-    csvFile << TASKS << "," << WORKERS << ",Thread Pool,"
-            << pool << "," << poolSpeedup << ","
-            << poolEfficiency << ","
-            << (correct ? "PASSED" : "FAILED") << "\n";
-
-    csvFile.close();
-
-    cout << "\nResults saved to results/task_parallelism.csv\n";
-
-    return correct ? 0 : 1;
 }

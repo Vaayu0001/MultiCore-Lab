@@ -2,14 +2,13 @@
 #include <vector>
 #include <thread>
 #include <chrono>
-#include <iomanip>
 #include <algorithm>
-#include <fstream>
-using namespace std;
+#include <iomanip>
+#include <sstream>
+#include <string>
+#include <stdexcept>
 
-const int ARRAY_SIZE = 10000000;
-const int WARMUP_RUNS = 2;
-const int BENCHMARK_RUNS = 15;
+using namespace std;
 
 long long sequentialSum(const vector<int>& arr)
 {
@@ -68,160 +67,184 @@ double medianTime(vector<double> times)
     return times[times.size() / 2];
 }
 
-int main()
+int readNumber(const string& value)
 {
-    vector<int> arr(ARRAY_SIZE);
+    size_t position = 0;
+    int number = stoi(value, &position);
 
-    for (int i = 0; i < ARRAY_SIZE; i++)
-        arr[i] = i % 100;
+    if (position != value.size())
+        throw invalid_argument("Invalid number.");
 
-    const long long expectedResult = sequentialSum(arr);
-    int threadCounts[] = {1, 2, 4, 8};
+    return number;
+}
 
-    // Create CSV file
-    ofstream csvFile("results/data_parallelism.csv");
+vector<int> readThreads(const string& input)
+{
+    vector<int> threads;
+    stringstream ss(input);
+    string value;
 
-    if (!csvFile.is_open())
+    while (getline(ss, value, ','))
     {
-        cout << "Could not create results/data_parallelism.csv\n";
+        int count = readNumber(value);
+
+        if (count < 1 || count > 256)
+            throw invalid_argument("Workers must be between 1 and 256.");
+
+        if (find(threads.begin(), threads.end(), count) != threads.end())
+            throw invalid_argument("Duplicate worker count.");
+
+        threads.push_back(count);
+    }
+
+    if (threads.empty())
+        throw invalid_argument("At least one worker count is required.");
+
+    return threads;
+}
+
+int main(int argc, char* argv[])
+{
+    int arraySize = 10000000;
+    int warmupRuns = 2;
+    int benchmarkRuns = 15;
+
+    vector<int> threadCounts = {1, 2, 4, 8};
+
+    try
+    {
+        if (argc != 1 && argc != 5)
+        {
+            throw invalid_argument(
+                "Usage: benchmark [array_size warmup_runs benchmark_runs workers]");
+        }
+
+        if (argc == 5)
+        {
+            arraySize = readNumber(argv[1]);
+            warmupRuns = readNumber(argv[2]);
+            benchmarkRuns = readNumber(argv[3]);
+            threadCounts = readThreads(argv[4]);
+        }
+
+        if (arraySize < 1000 || arraySize > 50000000)
+            throw invalid_argument("Array size must be between 1000 and 50000000.");
+
+        if (warmupRuns < 0 || warmupRuns > 20)
+            throw invalid_argument("Warm-up runs must be between 0 and 20.");
+
+        if (benchmarkRuns < 1 || benchmarkRuns > 100)
+            throw invalid_argument("Benchmark runs must be between 1 and 100.");
+
+        vector<int> arr(arraySize);
+
+        for (int i = 0; i < arraySize; i++)
+            arr[i] = i % 100;
+
+        const long long expectedResult = sequentialSum(arr);
+
+        cout << fixed << setprecision(6);
+
+        cout << "{";
+        cout << "\"benchmark\":\"data_parallelism\",";
+        cout << "\"array_size\":" << arraySize << ",";
+        cout << "\"warmup_runs\":" << warmupRuns << ",";
+        cout << "\"benchmark_runs\":" << benchmarkRuns << ",";
+        cout << "\"results\":[";
+
+        bool first = true;
+
+        for (int numThreads : threadCounts)
+        {
+            for (int i = 0; i < warmupRuns; i++)
+            {
+                if (parallelSum(arr, numThreads) != expectedResult)
+                    throw runtime_error("Warm-up correctness verification failed.");
+            }
+
+            vector<double> sequentialTimes;
+            vector<double> singleWorkerTimes;
+            vector<double> parallelTimes;
+
+            bool correct = true;
+
+            for (int run = 0; run < benchmarkRuns; run++)
+            {
+                long long seqResult = 0;
+                long long singleResult = 0;
+                long long parallelResult = 0;
+
+                auto runSequential = [&]()
+                {
+                    seqResult = sequentialSum(arr);
+                };
+
+                auto runSingle = [&]()
+                {
+                    singleResult = parallelSum(arr, 1);
+                };
+
+                auto runParallel = [&]()
+                {
+                    parallelResult = parallelSum(arr, numThreads);
+                };
+
+                if (run % 2 == 0)
+                {
+                    sequentialTimes.push_back(measureTime(runSequential));
+                    singleWorkerTimes.push_back(measureTime(runSingle));
+                    parallelTimes.push_back(measureTime(runParallel));
+                }
+                else
+                {
+                    parallelTimes.push_back(measureTime(runParallel));
+                    singleWorkerTimes.push_back(measureTime(runSingle));
+                    sequentialTimes.push_back(measureTime(runSequential));
+                }
+
+                if (seqResult != expectedResult ||
+                    singleResult != expectedResult ||
+                    parallelResult != expectedResult)
+                {
+                    correct = false;
+                }
+            }
+
+            if (!correct)
+                throw runtime_error("Correctness verification failed.");
+
+            double seqTime = medianTime(sequentialTimes);
+            double singleTime = medianTime(singleWorkerTimes);
+            double parallelTime = medianTime(parallelTimes);
+
+            double speedup = seqTime / parallelTime;
+
+            double efficiency =
+                (singleTime / parallelTime) / numThreads * 100.0;
+
+            if (!first)
+                cout << ",";
+
+            first = false;
+
+            cout << "{";
+            cout << "\"threads\":" << numThreads << ",";
+            cout << "\"sequential_ms\":" << seqTime << ",";
+            cout << "\"parallel_ms\":" << parallelTime << ",";
+            cout << "\"speedup\":" << speedup << ",";
+            cout << "\"efficiency\":" << efficiency << ",";
+            cout << "\"correctness\":\"PASSED\"";
+            cout << "}";
+        }
+
+        cout << "]}";
+        cout << endl;
+
+        return 0;
+    }
+    catch (const exception& error)
+    {
+        cerr << "Benchmark error: " << error.what() << endl;
         return 1;
     }
-
-    csvFile << "array_size,warmup_runs,benchmark_runs,threads,"
-            << "sequential_ms,parallel_ms,speedup,efficiency,correctness\n";
-
-    cout << "\n--- Data Parallelism Benchmark ---\n";
-    cout << "Array Size: " << ARRAY_SIZE << endl;
-    cout << "Warm-up Runs: " << WARMUP_RUNS << endl;
-    cout << "Benchmark Runs: " << BENCHMARK_RUNS << endl;
-
-    cout << fixed << setprecision(2);
-
-    cout << "\nThreads\tSequential(ms)\tParallel(ms)"
-         << "\tSpeedup\tEfficiency\tCheck\n";
-
-    for (int numThreads : threadCounts)
-    {
-        // Warm-up
-        for (int i = 0; i < WARMUP_RUNS; i++)
-        {
-            sequentialSum(arr);
-
-            if (parallelSum(arr, 1) != expectedResult)
-            {
-                cout << "Single-worker verification failed.\n";
-                return 1;
-            }
-
-            if (parallelSum(arr, numThreads) != expectedResult)
-            {
-                cout << "Correctness verification failed.\n";
-                return 1;
-            }
-        }
-
-        vector<double> sequentialTimes;
-        vector<double> singleWorkerTimes;
-        vector<double> parallelTimes;
-
-        bool correct = true;
-
-        // Benchmark
-        for (int run = 0; run < BENCHMARK_RUNS; run++)
-        {
-            long long seqResult = 0;
-            long long singleWorkerResult = 0;
-            long long parResult = 0;
-
-            auto runSequential = [&]()
-            {
-                seqResult = sequentialSum(arr);
-            };
-
-            auto runParallel = [&]()
-            {
-                parResult = parallelSum(arr, numThreads);
-            };
-
-            auto runSingleWorker = [&]()
-            {
-                singleWorkerResult = parallelSum(arr, 1);
-            };
-
-            // Alternate execution order
-            if (run % 2 == 0)
-            {
-                sequentialTimes.push_back(
-                    measureTime(runSequential));
-
-                singleWorkerTimes.push_back(
-                    measureTime(runSingleWorker));
-
-                parallelTimes.push_back(
-                    measureTime(runParallel));
-            }
-            else
-            {
-                parallelTimes.push_back(
-                    measureTime(runParallel));
-
-                singleWorkerTimes.push_back(
-                    measureTime(runSingleWorker));
-
-                sequentialTimes.push_back(
-                    measureTime(runSequential));
-            }
-
-            if (seqResult != expectedResult ||
-                singleWorkerResult != expectedResult ||
-                parResult != expectedResult)
-            {
-                correct = false;
-            }
-        }
-
-        if (!correct)
-        {
-            cout << numThreads
-                 << " threads: FAILED verification.\n";
-            return 1;
-        }
-
-        // Calculate median timings
-        double seqTime = medianTime(sequentialTimes);
-        double singleWorkerTime = medianTime(singleWorkerTimes);
-        double parTime = medianTime(parallelTimes);
-
-        // Speedup compared with sequential execution
-        double speedup = seqTime / parTime;
-
-        // Efficiency compared with one parallel worker
-        double parallelSpeedup = singleWorkerTime / parTime;
-        double efficiency = parallelSpeedup / numThreads * 100.0;
-
-        cout << numThreads << "\t"
-             << seqTime << "\t\t"
-             << parTime << "\t\t"
-             << speedup << "x\t"
-             << efficiency << "%\t"
-             << "PASSED\n";
-
-        // Save benchmark result to CSV
-        csvFile << ARRAY_SIZE << ","
-                << WARMUP_RUNS << ","
-                << BENCHMARK_RUNS << ","
-                << numThreads << ","
-                << setprecision(6) << seqTime << ","
-                << parTime << ","
-                << speedup << ","
-                << efficiency << ","
-                << "PASSED\n";
-    }
-
-    csvFile.close();
-
-    cout << "\nResults saved to results/data_parallelism.csv\n";
-    cout << "\nSequential Result Verification: PASSED\n";
-
-    return 0;
 }
